@@ -4,8 +4,10 @@ import {
   getLogs,
   getApps,
   getTraceByTraceId,
+  getLogStats,
   type LogFilters,
   type TraceSpan,
+  type LogStats,
 } from '../../../server/logs'
 
 export const Route = createFileRoute('/admin/app/logs')({
@@ -38,6 +40,10 @@ function AdminLogsPage() {
   const [expandedSpans, setExpandedSpans] = createSignal<Set<string>>(
     new Set(),
   )
+
+  // 统计状态
+  const [stats, setStats] = createSignal<LogStats | null>(null)
+  const [statsLoading, setStatsLoading] = createSignal(false)
 
   const PAGE_SIZE = 20
 
@@ -109,14 +115,34 @@ function AdminLogsPage() {
     setTraceTree([])
   }
 
+  const loadStats = async () => {
+    setStatsLoading(true)
+    try {
+      const filters: { appId?: number; startTime?: string; endTime?: string } =
+        {}
+      if (filterAppId()) filters.appId = filterAppId()
+      if (filterStartTime()) filters.startTime = filterStartTime()
+      if (filterEndTime()) filters.endTime = filterEndTime()
+
+      const result = (await getLogStats({ data: filters })) as any
+      if (result.success && result.data) {
+        setStats(result.data)
+      }
+    } finally {
+      setStatsLoading(false)
+    }
+  }
+
   onMount(() => {
     loadApps()
     loadLogs()
+    loadStats()
   })
 
   const handleSearch = () => {
     setPage(1)
     loadLogs()
+    loadStats()
   }
 
   const handleReset = () => {
@@ -351,7 +377,76 @@ function AdminLogsPage() {
           </div>
         </div>
 
-        {/* 统计信息 */}
+        {/* 统计面板 */}
+        <Show when={stats()}>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <div class="app-card p-4">
+              <div class="text-sm text-[var(--text-secondary)] mb-1">
+                日志总量
+              </div>
+              <div class="text-2xl font-bold text-[var(--text-primary)]">
+                {stats()!.total}
+              </div>
+            </div>
+            <div class="app-card p-4">
+              <div class="text-sm text-[var(--text-secondary)] mb-1">
+                错误率
+              </div>
+              <div
+                class={`text-2xl font-bold ${stats()!.errorRate > 10 ? 'text-[var(--error)]' : 'text-[var(--success)]'}`}
+              >
+                {stats()!.errorRate}%
+              </div>
+            </div>
+            <For each={stats()!.byLevel}>
+              {(item) => (
+                <div class="app-card p-4">
+                  <div class="text-sm text-[var(--text-secondary)] mb-1">
+                    {item.level}
+                  </div>
+                  <div class="text-2xl font-bold text-[var(--text-primary)]">
+                    {item.count}
+                  </div>
+                </div>
+              )}
+            </For>
+          </div>
+
+          {/* 趋势图 */}
+          <Show when={stats()!.trend.length > 0}>
+            <div class="app-card p-4 mb-6">
+              <div class="text-sm font-medium text-[var(--text-primary)] mb-3">
+                最近 24 小时趋势
+              </div>
+              <div class="flex items-end gap-1 h-20">
+                <For each={stats()!.trend}>
+                  {(item) => {
+                    const maxCount = Math.max(
+                      ...stats()!.trend.map((t) => t.count),
+                    )
+                    const height = maxCount > 0 ? (item.count / maxCount) * 100 : 0
+                    return (
+                      <div class="flex-1 flex flex-col items-center gap-1">
+                        <div class="text-xs text-[var(--text-muted)]">
+                          {item.count}
+                        </div>
+                        <div
+                          class="w-full bg-[var(--primary)] rounded-t"
+                          style={{ height: `${Math.max(height, 4)}%` }}
+                        />
+                        <div class="text-xs text-[var(--text-muted)]">
+                          {item.hour}
+                        </div>
+                      </div>
+                    )
+                  }}
+                </For>
+              </div>
+            </div>
+          </Show>
+        </Show>
+
+        {/* 日志列表统计 */}
         <div class="flex items-center justify-between mb-4">
           <div class="text-sm text-[var(--text-secondary)]">
             共 {total()} 条日志

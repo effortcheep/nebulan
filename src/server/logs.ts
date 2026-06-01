@@ -191,3 +191,96 @@ export const getTraceByTraceId = createServerFn({ method: 'GET' })
       return { success: false, error: '获取链路数据失败' }
     }
   })
+
+export interface LogStatsFilters {
+  appId?: number
+  startTime?: string
+  endTime?: string
+}
+
+export interface LogStats {
+  total: number
+  byLevel: { level: string; count: number }[]
+  errorRate: number
+  trend: { hour: string; count: number }[]
+}
+
+export const getLogStats = createServerFn({ method: 'POST' })
+  .inputValidator((data: LogStatsFilters) => data)
+  .handler(async ({ data }): Promise<{ success: true; data: LogStats } | { success: false; error: string }> => {
+    try {
+      const { appId, startTime, endTime } = data
+
+      const conditions: SQL[] = []
+
+      if (appId) {
+        conditions.push(eq(logs.appId, appId))
+      }
+
+      if (startTime) {
+        conditions.push(gte(logs.createdAt, new Date(startTime)))
+      }
+
+      if (endTime) {
+        conditions.push(lte(logs.createdAt, new Date(endTime)))
+      }
+
+      const where = conditions.length > 0 ? and(...conditions) : undefined
+
+      // 总数
+      const [totalResult] = await db
+        .select({ total: sql<number>`count(*)` })
+        .from(logs)
+        .where(where)
+
+      const total = totalResult?.total ?? 0
+
+      // 按级别分组
+      const byLevel = await db
+        .select({
+          level: logs.level,
+          count: sql<number>`count(*)`,
+        })
+        .from(logs)
+        .where(where)
+        .groupBy(logs.level)
+
+      // 错误率
+      const [errorResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(logs)
+        .where(
+          where
+            ? and(where, eq(logs.level, 'error'))
+            : eq(logs.level, 'error'),
+        )
+
+      const errorCount = errorResult?.count ?? 0
+      const errorRate = total > 0 ? Math.round((errorCount / total) * 100) : 0
+
+      // 趋势数据（最近 24 小时，按小时分组）
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      const trendConditions: SQL[] = [gte(logs.createdAt, oneDayAgo)]
+      if (appId) {
+        trendConditions.push(eq(logs.appId, appId))
+      }
+
+      const trend = await db
+        .select({
+          hour: sql<string>`to_char(${logs.createdAt}, 'HH24:00')`,
+          count: sql<number>`count(*)`,
+        })
+        .from(logs)
+        .where(and(...trendConditions))
+        .groupBy(sql`to_char(${logs.createdAt}, 'HH24:00')`)
+        .orderBy(sql`to_char(${logs.createdAt}, 'HH24:00')`)
+
+      return {
+        success: true,
+        data: { total, byLevel, errorRate, trend },
+      }
+    } catch (error) {
+      console.error('Failed to get log stats:', error)
+      return { success: false, error: '获取统计数据失败' }
+    }
+  })
