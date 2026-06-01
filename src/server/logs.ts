@@ -284,3 +284,46 @@ export const getLogStats = createServerFn({ method: 'POST' })
       return { success: false, error: '获取统计数据失败' }
     }
   })
+
+export async function cleanupOldLogs() {
+  try {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+
+    // 删除 7 天前的非 error 日志
+    const normalResult = await db
+      .delete(logs)
+      .where(
+        and(
+          lte(logs.createdAt, sevenDaysAgo),
+          sql`${logs.level} != 'error'`,
+        ),
+      )
+
+    // 删除 30 天前的 error 日志
+    const errorResult = await db
+      .delete(logs)
+      .where(
+        and(lte(logs.createdAt, thirtyDaysAgo), eq(logs.level, 'error')),
+      )
+
+    console.log(
+      `[Log Cleanup] 删除普通日志: ${normalResult.rowCount ?? 0} 条, 错误日志: ${errorResult.rowCount ?? 0} 条`,
+    )
+
+    return {
+      success: true,
+      deletedNormal: normalResult.rowCount ?? 0,
+      deletedError: errorResult.rowCount ?? 0,
+    }
+  } catch (error) {
+    console.error('[Log Cleanup] 清理失败:', error)
+    return { success: false, error: '日志清理失败' }
+  }
+}
+
+export const runLogCleanup = createServerFn({ method: 'POST' }).handler(
+  async () => {
+    return cleanupOldLogs()
+  },
+)
