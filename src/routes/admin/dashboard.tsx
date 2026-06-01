@@ -176,6 +176,12 @@ function AdminDashboardPage() {
 
               <div class="flex items-center gap-4">
                 <a
+                  href="/admin/app/logs"
+                  class="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  日志管理
+                </a>
+                <a
                   href="/apps"
                   target="_blank"
                   class="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"

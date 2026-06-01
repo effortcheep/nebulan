@@ -33,10 +33,10 @@ export const getApps = createServerFn({ method: 'GET' }).handler(async () => {
 })
 
 // 根据 slug 获取应用详情
-export const getAppBySlug = createServerFn({ method: 'GET' }).handler(
-  async (ctx: { payload: string }) => {
+export const getAppBySlug = createServerFn({ method: 'GET' })
+  .inputValidator((data: string) => data)
+  .handler(async ({ data: slug }) => {
     try {
-      const slug = ctx.payload
       const app = await db.query.apps.findFirst({
         where: eq(apps.slug, slug),
       })
@@ -61,16 +61,17 @@ export const getAppBySlug = createServerFn({ method: 'GET' }).handler(
       console.error('Failed to get app:', error)
       return { success: false, error: 'Failed to fetch app' }
     }
-  },
-)
+  })
 
 // 记录下载
-export const recordDownload = createServerFn({ method: 'POST' }).handler(
-  async (ctx: {
-    payload: { versionId: number; ipAddress?: string; userAgent?: string }
-  }) => {
+export const recordDownload = createServerFn({ method: 'POST' })
+  .inputValidator(
+    (data: { versionId: number; ipAddress?: string; userAgent?: string }) =>
+      data,
+  )
+  .handler(async ({ data }) => {
     try {
-      const { versionId, ipAddress, userAgent } = ctx.payload
+      const { versionId, ipAddress, userAgent } = data
       await db.insert(downloadStats).values({
         versionId,
         ipAddress,
@@ -82,14 +83,13 @@ export const recordDownload = createServerFn({ method: 'POST' }).handler(
       console.error('Failed to record download:', error)
       return { success: false, error: 'Failed to record download' }
     }
-  },
-)
+  })
 
 // 获取下载统计
-export const getDownloadStats = createServerFn({ method: 'GET' }).handler(
-  async (ctx: { payload: number }) => {
+export const getDownloadStats = createServerFn({ method: 'GET' })
+  .inputValidator((data: number) => data)
+  .handler(async ({ data: appId }) => {
     try {
-      const appId = ctx.payload
       // 获取该应用所有版本的下载统计
       const stats = await db
         .select({
@@ -109,5 +109,4 @@ export const getDownloadStats = createServerFn({ method: 'GET' }).handler(
       console.error('Failed to get download stats:', error)
       return { success: false, error: 'Failed to fetch stats' }
     }
-  },
-)
+  })
