@@ -16,6 +16,7 @@ import { Route as AppsIndexRouteImport } from './routes/apps/index'
 import { Route as AppsSlugRouteImport } from './routes/apps/$slug'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
 import { Route as ApiLogsIngestRouteImport } from './routes/api/logs/ingest'
+import { Route as AdminAppLogsRouteImport } from './routes/admin/app/logs'
 
 const AppsRoute = AppsRouteImport.update({
   id: '/apps',
@@ -52,6 +53,11 @@ const ApiLogsIngestRoute = ApiLogsIngestRouteImport.update({
   path: '/api/logs/ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminAppLogsRoute = AdminAppLogsRouteImport.update({
+  id: '/app/logs',
+  path: '/app/logs',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/admin/dashboard': typeof AdminDashboardRoute
   '/apps/$slug': typeof AppsSlugRoute
   '/apps/': typeof AppsIndexRoute
+  '/admin/app/logs': typeof AdminAppLogsRoute
   '/api/logs/ingest': typeof ApiLogsIngestRoute
 }
 export interface FileRoutesByTo {
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/admin/dashboard': typeof AdminDashboardRoute
   '/apps/$slug': typeof AppsSlugRoute
   '/apps': typeof AppsIndexRoute
+  '/admin/app/logs': typeof AdminAppLogsRoute
   '/api/logs/ingest': typeof ApiLogsIngestRoute
 }
 export interface FileRoutesById {
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/admin/dashboard': typeof AdminDashboardRoute
   '/apps/$slug': typeof AppsSlugRoute
   '/apps/': typeof AppsIndexRoute
+  '/admin/app/logs': typeof AdminAppLogsRoute
   '/api/logs/ingest': typeof ApiLogsIngestRoute
 }
 export interface FileRouteTypes {
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/apps/$slug'
     | '/apps/'
+    | '/admin/app/logs'
     | '/api/logs/ingest'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/apps/$slug'
     | '/apps'
+    | '/admin/app/logs'
     | '/api/logs/ingest'
   id:
     | '__root__'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/apps/$slug'
     | '/apps/'
+    | '/admin/app/logs'
     | '/api/logs/ingest'
   fileRoutesById: FileRoutesById
 }
@@ -167,15 +179,24 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof ApiLogsIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/app/logs': {
+      id: '/admin/app/logs'
+      path: '/app/logs'
+      fullPath: '/admin/app/logs'
+      preLoaderRoute: typeof AdminAppLogsRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
 interface AdminRouteChildren {
   AdminDashboardRoute: typeof AdminDashboardRoute
+  AdminAppLogsRoute: typeof AdminAppLogsRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminDashboardRoute: AdminDashboardRoute,
+  AdminAppLogsRoute: AdminAppLogsRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
