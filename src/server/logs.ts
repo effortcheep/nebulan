@@ -129,3 +129,65 @@ export const getApps = createServerFn({ method: 'GET' }).handler(async () => {
     return { success: false, error: '获取应用列表失败' }
   }
 })
+
+export interface TraceSpan {
+  id: number
+  spanId: string
+  parentSpanId: string | null
+  level: string
+  eventType: string
+  eventData: unknown
+  status: string | null
+  durationMs: number | null
+  createdAt: Date
+  children: TraceSpan[]
+}
+
+export const getTraceByTraceId = createServerFn({ method: 'GET' })
+  .inputValidator((data: string) => data)
+  .handler(async ({ data: traceId }) => {
+    try {
+      const spans = await db
+        .select({
+          id: logs.id,
+          spanId: logs.spanId,
+          parentSpanId: logs.parentSpanId,
+          level: logs.level,
+          eventType: logs.eventType,
+          eventData: logs.eventData,
+          status: logs.status,
+          durationMs: logs.durationMs,
+          createdAt: logs.createdAt,
+        })
+        .from(logs)
+        .where(eq(logs.traceId, traceId))
+        .orderBy(logs.createdAt)
+
+      // 构建树形结构
+      const spanMap = new Map<string, TraceSpan>()
+      const roots: TraceSpan[] = []
+
+      // 先创建所有节点
+      for (const span of spans) {
+        spanMap.set(span.spanId, {
+          ...span,
+          children: [],
+        })
+      }
+
+      // 再建立父子关系
+      for (const span of spans) {
+        const node = spanMap.get(span.spanId)!
+        if (span.parentSpanId && spanMap.has(span.parentSpanId)) {
+          spanMap.get(span.parentSpanId)!.children.push(node)
+        } else {
+          roots.push(node)
+        }
+      }
+
+      return { success: true, data: roots }
+    } catch (error) {
+      console.error('Failed to get trace:', error)
+      return { success: false, error: '获取链路数据失败' }
+    }
+  })

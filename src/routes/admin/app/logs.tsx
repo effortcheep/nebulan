@@ -3,7 +3,9 @@ import { createSignal, Show, For, onMount } from 'solid-js'
 import {
   getLogs,
   getApps,
+  getTraceByTraceId,
   type LogFilters,
+  type TraceSpan,
 } from '../../../server/logs'
 
 export const Route = createFileRoute('/admin/app/logs')({
@@ -26,6 +28,16 @@ function AdminLogsPage() {
   const [filterStartTime, setFilterStartTime] = createSignal('')
   const [filterEndTime, setFilterEndTime] = createSignal('')
   const [filterSearch, setFilterSearch] = createSignal('')
+
+  // 链路追踪状态
+  const [selectedTraceId, setSelectedTraceId] = createSignal<string | null>(
+    null,
+  )
+  const [traceTree, setTraceTree] = createSignal<TraceSpan[]>([])
+  const [traceLoading, setTraceLoading] = createSignal(false)
+  const [expandedSpans, setExpandedSpans] = createSignal<Set<string>>(
+    new Set(),
+  )
 
   const PAGE_SIZE = 20
 
@@ -61,6 +73,40 @@ function AdminLogsPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadTrace = async (traceId: string) => {
+    setTraceLoading(true)
+    setSelectedTraceId(traceId)
+    setExpandedSpans(new Set())
+    try {
+      const result = (await getTraceByTraceId({ data: traceId })) as any
+      if (result.success && result.data) {
+        setTraceTree(result.data)
+        // 默认展开所有顶层节点
+        const topIds = result.data.map((s: TraceSpan) => s.spanId)
+        setExpandedSpans(new Set(topIds))
+      }
+    } finally {
+      setTraceLoading(false)
+    }
+  }
+
+  const toggleSpan = (spanId: string) => {
+    setExpandedSpans((prev) => {
+      const next = new Set(prev)
+      if (next.has(spanId)) {
+        next.delete(spanId)
+      } else {
+        next.add(spanId)
+      }
+      return next
+    })
+  }
+
+  const closeTrace = () => {
+    setSelectedTraceId(null)
+    setTraceTree([])
   }
 
   onMount(() => {
@@ -107,6 +153,15 @@ function AdminLogsPage() {
     return str.length > maxLen ? str.substring(0, maxLen) + '...' : str
   }
 
+  const formatJson = (data: unknown) => {
+    if (!data) return '-'
+    try {
+      return JSON.stringify(data, null, 2)
+    } catch {
+      return String(data)
+    }
+  }
+
   const levelColor = (level: string) => {
     switch (level) {
       case 'debug':
@@ -120,6 +175,12 @@ function AdminLogsPage() {
       default:
         return 'bg-gray-100 text-gray-700'
     }
+  }
+
+  const statusColor = (status: string | null) => {
+    if (status === 'ok') return 'text-green-600'
+    if (status === 'error') return 'text-red-600'
+    return 'text-gray-500'
   }
 
   return (
@@ -375,8 +436,13 @@ function AdminLogsPage() {
                             {log.os} {log.osVersion}
                           </div>
                         </td>
-                        <td class="px-4 py-3 text-sm text-[var(--text-secondary)] font-mono">
-                          <span class="text-xs">{log.traceId}</span>
+                        <td class="px-4 py-3 text-sm font-mono">
+                          <button
+                            onClick={() => loadTrace(log.traceId)}
+                            class="text-[var(--primary)] hover:text-[var(--primary-dark)] hover:underline cursor-pointer text-xs"
+                          >
+                            {log.traceId}
+                          </button>
                         </td>
                         <td class="px-4 py-3 text-sm text-[var(--text-secondary)] max-w-xs truncate">
                           {truncateJson(log.eventData)}
@@ -413,6 +479,204 @@ function AdminLogsPage() {
           </div>
         </Show>
       </main>
+
+      {/* 链路追踪详情面板 */}
+      <Show when={selectedTraceId()}>
+        <div class="fixed inset-0 bg-black/50 z-50 flex justify-end">
+          <div class="bg-white w-full max-w-2xl h-full overflow-y-auto shadow-xl">
+            {/* 面板头部 */}
+            <div class="sticky top-0 bg-white border-b border-[var(--border-light)] px-6 py-4 flex items-center justify-between">
+              <div>
+                <h2 class="text-lg font-bold text-[var(--text-primary)]">
+                  链路追踪
+                </h2>
+                <p class="text-xs text-[var(--text-muted)] font-mono mt-1">
+                  {selectedTraceId()}
+                </p>
+              </div>
+              <button
+                onClick={closeTrace}
+                class="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-1"
+              >
+                <svg
+                  class="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* 面板内容 */}
+            <div class="p-6">
+              <Show
+                when={!traceLoading()}
+                fallback={
+                  <div class="text-center py-8 text-[var(--text-secondary)]">
+                    加载中...
+                  </div>
+                }
+              >
+                <Show
+                  when={traceTree().length > 0}
+                  fallback={
+                    <div class="text-center py-8 text-[var(--text-secondary)]">
+                      无链路数据
+                    </div>
+                  }
+                >
+                  <div class="space-y-1">
+                    <For each={traceTree()}>
+                      {(span) => (
+                        <TraceNode
+                          span={span}
+                          depth={0}
+                          expandedSpans={expandedSpans()}
+                          onToggle={toggleSpan}
+                        />
+                      )}
+                    </For>
+                  </div>
+                </Show>
+              </Show>
+            </div>
+          </div>
+        </div>
+      </Show>
+    </div>
+  )
+}
+
+function TraceNode(props: {
+  span: TraceSpan
+  depth: number
+  expandedSpans: Set<string>
+  onToggle: (spanId: string) => void
+}) {
+  const hasChildren = () => props.span.children.length > 0
+  const isExpanded = () => props.expandedSpans.has(props.span.spanId)
+
+  const levelColor = (level: string) => {
+    switch (level) {
+      case 'debug':
+        return 'bg-gray-100 text-gray-700'
+      case 'info':
+        return 'bg-blue-100 text-blue-700'
+      case 'warn':
+        return 'bg-yellow-100 text-yellow-700'
+      case 'error':
+        return 'bg-red-100 text-red-700'
+      default:
+        return 'bg-gray-100 text-gray-700'
+    }
+  }
+
+  const statusColor = (status: string | null) => {
+    if (status === 'ok') return 'text-green-600'
+    if (status === 'error') return 'text-red-600'
+    return 'text-gray-500'
+  }
+
+  const formatJson = (data: unknown) => {
+    if (!data) return '-'
+    try {
+      return JSON.stringify(data, null, 2)
+    } catch {
+      return String(data)
+    }
+  }
+
+  return (
+    <div>
+      <div
+        class="flex items-start gap-2 py-2 px-3 rounded-lg hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+        style={{ 'padding-left': `${props.depth * 24 + 12}px` }}
+        onClick={() => hasChildren() && props.onToggle(props.span.spanId)}
+      >
+        {/* 展开/折叠图标 */}
+        <div class="w-5 h-5 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <Show
+            when={hasChildren()}
+            fallback={<span class="w-2 h-2 rounded-full bg-gray-300" />}
+          >
+            <svg
+              class={`w-4 h-4 text-[var(--text-muted)] transition-transform ${isExpanded() ? 'rotate-90' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width={2}
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+          </Show>
+        </div>
+
+        {/* 节点内容 */}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span
+              class={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${levelColor(props.span.level)}`}
+            >
+              {props.span.level}
+            </span>
+            <span class="font-mono text-sm text-[var(--text-primary)]">
+              {props.span.eventType}
+            </span>
+            <Show when={props.span.status}>
+              <span
+                class={`text-xs font-medium ${statusColor(props.span.status)}`}
+              >
+                [{props.span.status}]
+              </span>
+            </Show>
+            <Show when={props.span.durationMs}>
+              <span class="text-xs text-[var(--text-muted)]">
+                {props.span.durationMs}ms
+              </span>
+            </Show>
+          </div>
+          <div class="text-xs text-[var(--text-muted)] mt-1">
+            span: {props.span.spanId}
+          </div>
+        </div>
+      </div>
+
+      {/* 展开的 event_data */}
+      <Show when={isExpanded() && props.span.eventData}>
+        <div
+          class="mx-3 mb-2 rounded-lg bg-gray-50 border border-[var(--border-light)] overflow-hidden"
+          style={{ 'margin-left': `${props.depth * 24 + 40}px` }}
+        >
+          <pre class="p-3 text-xs text-[var(--text-secondary)] font-mono whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
+            {formatJson(props.span.eventData)}
+          </pre>
+        </div>
+      </Show>
+
+      {/* 子节点 */}
+      <Show when={isExpanded() && hasChildren()}>
+        <For each={props.span.children}>
+          {(child) => (
+            <TraceNode
+              span={child}
+              depth={props.depth + 1}
+              expandedSpans={props.expandedSpans}
+              onToggle={props.onToggle}
+            />
+          )}
+        </For>
+      </Show>
     </div>
   )
 }
