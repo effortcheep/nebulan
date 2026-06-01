@@ -21,13 +21,6 @@ export default function Header() {
           >
             Home
           </Link>
-          <Link
-            to="/about"
-            class="nav-link"
-            activeProps={{ class: 'nav-link is-active' }}
-          >
-            About
-          </Link>
           <a
             href="https://tanstack.com/start/latest/docs/framework/solid/overview"
             target="_blank"
