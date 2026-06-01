@@ -4,8 +4,13 @@ import { apps, versions, users } from '../db/schema'
 import { eq, desc } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import { randomBytes } from 'node:crypto'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+
+function generateApiKey(): string {
+  return randomBytes(32).toString('hex')
+}
 
 // 管理员登录
 export const adminLogin = createServerFn({ method: 'POST' }).handler(
@@ -81,6 +86,7 @@ export const createApp = createServerFn({ method: 'POST' }).handler(
           slug,
           description,
           iconUrl,
+          apiKey: generateApiKey(),
         })
         .returning()
 
