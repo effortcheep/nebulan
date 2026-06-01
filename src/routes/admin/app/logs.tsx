@@ -36,12 +36,11 @@ function AdminLogsPage() {
 
   // 统计状态
   const [stats, setStats] = createSignal<LogStats | null>(null)
-  const [statsLoading, setStatsLoading] = createSignal(false)
 
   const PAGE_SIZE = 20
 
   const loadApps = async () => {
-    const result = (await getApps()) as any
+    const result = (await getApps()) as { success: boolean; data?: unknown[] }
     if (result.success && result.data) {
       setApps(result.data)
     }
@@ -63,7 +62,7 @@ function AdminLogsPage() {
       if (filterEndTime()) filters.endTime = filterEndTime()
       if (filterSearch()) filters.search = filterSearch()
 
-      const result = (await getLogs({ data: filters })) as any
+      const result = await getLogs({ data: filters })
       if (result.success && result.data) {
         setLogs(result.data.logs)
         setTotal(result.data.total)
@@ -77,14 +76,14 @@ function AdminLogsPage() {
   const loadTrace = async (traceId: string) => {
     setTraceLoading(true)
     setSelectedTraceId(traceId)
-    setExpandedSpans(new Set())
+    setExpandedSpans(new Set<string>())
     try {
-      const result = (await getTraceByTraceId({ data: traceId })) as any
+      const result = await getTraceByTraceId({ data: traceId })
       if (result.success && result.data) {
         setTraceTree(result.data)
         // 默认展开所有顶层节点
-        const topIds = result.data.map((s: TraceSpan) => s.spanId)
-        setExpandedSpans(new Set(topIds))
+        const topIds = result.data.map((s: TraceSpan) => s.spanId) as string[]
+        setExpandedSpans(new Set<string>(topIds))
       }
     } finally {
       setTraceLoading(false)
@@ -109,7 +108,6 @@ function AdminLogsPage() {
   }
 
   const loadStats = async () => {
-    setStatsLoading(true)
     try {
       const filters: { appId?: number; startTime?: string; endTime?: string } =
         {}
@@ -117,12 +115,15 @@ function AdminLogsPage() {
       if (filterStartTime()) filters.startTime = filterStartTime()
       if (filterEndTime()) filters.endTime = filterEndTime()
 
-      const result = (await getLogStats({ data: filters })) as any
+      const result = (await getLogStats({ data: filters })) as {
+        success: boolean
+        data?: LogStats
+      }
       if (result.success && result.data) {
         setStats(result.data)
       }
-    } finally {
-      setStatsLoading(false)
+    } catch {
+      // ignore
     }
   }
 
@@ -172,15 +173,6 @@ function AdminLogsPage() {
     return str.length > maxLen ? str.substring(0, maxLen) + '...' : str
   }
 
-  const formatJson = (data: unknown) => {
-    if (!data) return '-'
-    try {
-      return JSON.stringify(data, null, 2)
-    } catch {
-      return String(data)
-    }
-  }
-
   const levelColor = (level: string) => {
     switch (level) {
       case 'debug':
@@ -194,12 +186,6 @@ function AdminLogsPage() {
       default:
         return 'bg-gray-100 text-gray-700'
     }
-  }
-
-  const statusColor = (status: string | null) => {
-    if (status === 'ok') return 'text-green-600'
-    if (status === 'error') return 'text-red-600'
-    return 'text-gray-500'
   }
 
   return (

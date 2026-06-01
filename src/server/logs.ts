@@ -18,7 +18,7 @@ export interface LogFilters {
 
 export const getLogs = createServerFn({ method: 'POST' })
   .inputValidator((data: LogFilters) => data)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<any> => {
     try {
       const {
         appId,
@@ -146,7 +146,7 @@ export interface TraceSpan {
 
 export const getTraceByTraceId = createServerFn({ method: 'GET' })
   .inputValidator((data: string) => data)
-  .handler(async ({ data: traceId }) => {
+  .handler(async ({ data: traceId }): Promise<any> => {
     try {
       const spans = await db
         .select({
@@ -173,7 +173,7 @@ export const getTraceByTraceId = createServerFn({ method: 'GET' })
         spanMap.set(span.spanId, {
           ...span,
           children: [],
-        })
+        } as TraceSpan)
       }
 
       // 再建立父子关系
