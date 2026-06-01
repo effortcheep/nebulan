@@ -1,7 +1,8 @@
 import { createServerFn } from '@tanstack/solid-start'
 import { db } from '../db'
 import { logs, apps } from '../db/schema'
-import { eq, and, desc, sql, ilike, gte, lte, SQL } from 'drizzle-orm'
+import { eq, and, desc, sql, ilike, gte, lte } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 
 export interface LogFilters {
   appId?: number
@@ -71,7 +72,7 @@ export const getLogs = createServerFn({ method: 'POST' })
         .from(logs)
         .where(where)
 
-      const total = countResult?.total ?? 0
+      const total = countResult.total || 0
 
       // 查询日志列表
       const offset = (page - 1) * pageSize
@@ -233,7 +234,7 @@ export const getLogStats = createServerFn({ method: 'POST' })
         .from(logs)
         .where(where)
 
-      const total = totalResult?.total ?? 0
+      const total = totalResult.total || 0
 
       // 按级别分组
       const byLevel = await db
@@ -255,7 +256,7 @@ export const getLogStats = createServerFn({ method: 'POST' })
             : eq(logs.level, 'error'),
         )
 
-      const errorCount = errorResult?.count ?? 0
+      const errorCount = errorResult.count || 0
       const errorRate = total > 0 ? Math.round((errorCount / total) * 100) : 0
 
       // 趋势数据（最近 24 小时，按小时分组）

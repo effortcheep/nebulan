@@ -1,14 +1,7 @@
 import { createFileRoute } from '@tanstack/solid-router'
 import { createSignal, Show, For, onMount } from 'solid-js'
-import {
-  getLogs,
-  getApps,
-  getTraceByTraceId,
-  getLogStats,
-  type LogFilters,
-  type TraceSpan,
-  type LogStats,
-} from '../../../server/logs'
+import { getLogs, getApps, getTraceByTraceId, getLogStats } from '../../../server/logs'
+import type { LogFilters, TraceSpan, LogStats } from '../../../server/logs'
 
 export const Route = createFileRoute('/admin/app/logs')({
   component: AdminLogsPage,
